@@ -1,2 +1,4 @@
 # music_lstm
-Music midi generator based on lstm. 
+Sipmple music midi generator based on lstm. 
+
+![](scheme.svg)
