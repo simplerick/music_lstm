@@ -100,12 +100,12 @@ def train(model, X_train,Y_train, batch_size, num_iter, opt, scheduler=None):
     model.load_state_dict(best_model)
 
 
-def get_classes(y_h,random):
+def get_classes(y_h,random, temperature):
     if random:
-        y0 = torch.multinomial(torch.softmax(y_h[0:note_dim],-1), 1, replacement=True)
-        y1 = torch.multinomial(torch.softmax(y_h[note_dim:(note_dim+velocity_dim)],-1), 1, replacement=True)
-        y2 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim):(note_dim+velocity_dim+duration_dim)],-1), 1, replacement=True)
-        y3 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim+duration_dim):],-1), 1, replacement=True)
+        y0 = torch.multinomial(torch.softmax(y_h[0:note_dim] / temperature,-1), 1, replacement=True)
+        y1 = torch.multinomial(torch.softmax(y_h[note_dim:(note_dim+velocity_dim)]/ temperature,-1), 1, replacement=True)
+        y2 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim):(note_dim+velocity_dim+duration_dim)]/ temperature,-1), 1, replacement=True)
+        y3 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim+duration_dim):]/ temperature,-1), 1, replacement=True)
     else:
         y0 = torch.argmax(y_h[0:note_dim],-1,keepdim=True)
         y1 = torch.argmax(y_h[note_dim:(note_dim+velocity_dim)],-1,keepdim=True)
@@ -114,16 +114,16 @@ def get_classes(y_h,random):
     return torch.cat((y0, y1, y2, y3), -1)
 
 
-def generate(model, seed, length=200, random=False):
+def generate(model, seed, length=200, random=False, temperature=1.0):
     model.eval()
     model.hidden = model.init_hidden(1)
     seq = input_seq_to_output_seq(seed)
     with torch.no_grad():
         input_seed = torch.tensor(seed, device=model.device).unsqueeze(0)
         out = model.forward(input_seed,[len(seed)])
-        seq.append(to_seq(get_classes(out[0,-1,:],random)))
+        seq.append(to_seq(get_classes(out[0,-1,:],random, temperature)))
         for i in range(len(seed),length-1):
             input_tensor = torch.tensor(output_seq_to_input_seq([seq[i]]),dtype=torch.float32,device=model.device).unsqueeze(0)
             out = model.forward(input_tensor, [1])
-            seq.append(to_seq(get_classes(out[0,-1,:],random)))
+            seq.append(to_seq(get_classes(out[0,-1,:],random,temperature)))
     return seq
