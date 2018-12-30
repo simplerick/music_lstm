@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from midi_transform import note_dim, velocity_dim, duration_dim, dtime_dim, output_seq_to_input_seq, input_seq_to_output_seq
 
 
 #dims for one-hot representation
-note_dim = 128
-velocity_dim = 16
-duration_dim = 161
-dtime_dim = 161
+# note_dim = 128
+# velocity_dim = 16
+# duration_dim = 161
+# dtime_dim = 161
 
 
 def to_tensors(X, device, dtype=torch.float32):
@@ -99,30 +100,30 @@ def train(model, X_train,Y_train, batch_size, num_iter, opt, scheduler=None):
     model.load_state_dict(best_model)
 
 
+def get_classes(y_h,random):
+    if random:
+        y0 = torch.multinomial(torch.softmax(y_h[0:note_dim],-1), 1, replacement=True)
+        y1 = torch.multinomial(torch.softmax(y_h[note_dim:(note_dim+velocity_dim)],-1), 1, replacement=True)
+        y2 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim):(note_dim+velocity_dim+duration_dim)],-1), 1, replacement=True)
+        y3 = torch.multinomial(torch.softmax(y_h[(note_dim+velocity_dim+duration_dim):],-1), 1, replacement=True)
+    else:
+        y0 = torch.argmax(y_h[0:note_dim],-1,keepdim=True)
+        y1 = torch.argmax(y_h[note_dim:(note_dim+velocity_dim)],-1,keepdim=True)
+        y2 = torch.argmax(y_h[(note_dim+velocity_dim):(note_dim+velocity_dim+duration_dim)],-1,keepdim=True)
+        y3 = torch.argmax(y_h[(note_dim+velocity_dim+duration_dim):],-1,keepdim=True)
+    return torch.cat((y0, y1, y2, y3), -1)
 
-def evaluate(model, x):
+
+def generate(model, seed, length=200, random=False):
     model.eval()
     model.hidden = model.init_hidden(1)
+    seq = input_seq_to_output_seq(seed)
     with torch.no_grad():
-        y_h = model.forward(x.reshape(1,-1,4),[x.shape[1]])
-    y0 = torch.argmax(y_h[...,0:note_dim],-1)
-    y1 = torch.argmax(y_h[...,note_dim:(note_dim+velocity_dim)],-1)
-    y2 = torch.argmax(y_h[...,(note_dim+velocity_dim):(note_dim+velocity_dim+duration_dim)],-1)
-    y3 = torch.argmax(y_h[...,(note_dim+velocity_dim+duration_dim):],-1)
-    return to_seq(torch.cat((y0, y1, y2, y3), 0).transpose(0,1))
-
-
-
-def gen_random(model, seed=None, length=200):
-    model.eval()
-    model.hidden = model.init_hidden(1)
-    with torch.no_grad():
-        if seed == None:
-            seed = torch.rand(1,10,4, device=model.device)
-        out = model.forward(seed,[seed.shape[1]])
-        print(out)
-        y = out[:,-1,:].reshape(1, 1, 4)
-        seq = [y]
-        for i in range(length-1):
-            seq.append(model.forward(seq[i], [1]))
+        input_seed = torch.tensor(seed, device=model.device).unsqueeze(0)
+        out = model.forward(input_seed,[len(seed)])
+        seq.append(to_seq(get_classes(out[0,-1,:],random)))
+        for i in range(len(seed),length-1):
+            input_tensor = torch.tensor(output_seq_to_input_seq([seq[i]]),dtype=torch.float32,device=model.device).unsqueeze(0)
+            out = model.forward(input_tensor, [1])
+            seq.append(to_seq(get_classes(out[0,-1,:],random)))
     return seq

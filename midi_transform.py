@@ -11,6 +11,8 @@ dtime_dim = 161
 #TIME TRANSFORMATIONS
 def real_to_discrete(value,max_sec,scale):
     return round(min(value/max_sec,1)*scale)
+def discrete_to_real(value,max_sec,scale):
+    return max_sec*value/scale
 def discrete_to_ticks(value, max_sec, scale,ticks_per_beat,tempo):
     return int(round(ticks_per_beat*max_sec/tempo/scale*value))
 
@@ -43,6 +45,14 @@ def input_seq_to_output_seq(input_seq):
         v_out = [v[0], round(v[1]*15), real_to_discrete(v[2],4,duration_dim-1), real_to_discrete(v[3],4,dtime_dim-1)]
         output_seq.append(v_out)
     return output_seq
+
+
+def output_seq_to_input_seq(output_seq):
+    input_seq = []
+    for v in output_seq:
+        v_out = [v[0], v[1]/15, discrete_to_real(v[2],4,duration_dim-1), discrete_to_real(v[3],4,dtime_dim-1)]
+        input_seq.append(v_out)
+    return input_seq
 
 
 def output_seq_to_midi(seq):
