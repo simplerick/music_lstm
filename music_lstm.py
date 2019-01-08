@@ -4,12 +4,6 @@ from torch.nn import functional as F
 from midi_transform import note_dim, velocity_dim, duration_dim, dtime_dim, output_seq_to_input_seq, input_seq_to_output_seq
 
 
-#dims for one-hot representation
-# note_dim = 128
-# velocity_dim = 16
-# duration_dim = 161
-# dtime_dim = 161
-
 
 def to_tensors(X, device, dtype=torch.float32):
     X_t = [torch.tensor(v,dtype=dtype,device=device) for v in X]
@@ -59,6 +53,7 @@ class musicLSTM(nn.Module):
         h, _ = torch.nn.utils.rnn.pad_packed_sequence(h,batch_first=True)
         # batch x max_seq_len x vec_dim
         h = self.linear1(h)
+        h = F.dropout(h,0.5)
         h = F.relu(h)
         y = self.linear2(h)
         return y
@@ -117,12 +112,13 @@ def get_classes(y_h,random, temperature):
 def generate(model, seed, length=200, random=False, temperature=1.0):
     model.eval()
     model.hidden = model.init_hidden(1)
-    seq = input_seq_to_output_seq(seed)
+    # seq = input_seq_to_output_seq(seed)
+    seq = []
     with torch.no_grad():
         input_seed = torch.tensor(seed, device=model.device).unsqueeze(0)
         out = model.forward(input_seed,[len(seed)])
         seq.append(to_seq(get_classes(out[0,-1,:],random, temperature)))
-        for i in range(len(seed),length-1):
+        for i in range(length-1):
             input_tensor = torch.tensor(output_seq_to_input_seq([seq[i]]),dtype=torch.float32,device=model.device).unsqueeze(0)
             out = model.forward(input_tensor, [1])
             seq.append(to_seq(get_classes(out[0,-1,:],random,temperature)))

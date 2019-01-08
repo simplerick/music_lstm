@@ -73,6 +73,16 @@ def output_seq_to_midi(seq):
         notes.append(['note_off',int(note),64,time+duration])
     notes.sort(key=lambda x: x[-1])
     track.append(Message(notes[0][0], note=notes[0][1], velocity=notes[0][2], time=0))
+    in_process = [False]*128
+    in_process[notes[0][1]] = True
     for i in range(1,len(notes)):
+        #avoid overlap    
+        if notes[i][0] == 'note_on':
+            if in_process[notes[i][1]] == True:
+                continue
+            else:
+                in_process[notes[i][1]] = True
+        if notes[i][0] == 'note_off':
+            in_process[notes[i][1]] = False
         track.append( Message(notes[i][0],  note=notes[i][1], velocity=notes[i][2], time=notes[i][3]-notes[i-1][3]) )
     return mid
